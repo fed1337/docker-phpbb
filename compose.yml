@@ -16,3 +16,4 @@ services:
       - 'phpbb-avatars:/phpbb/www/images/avatars/upload'
     environment:
       PHPBB_INSTALL: 'true'
+      # PHPBB_DB_AUTOMIGRATE: 'true'

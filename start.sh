@@ -24,4 +24,7 @@ db_migrate() {
 # Apache gets grumpy about PID files pre-existing
 rm -f /run/apache2/httpd.pid
 
-db_wait && db_migrate && exec httpd -DFOREGROUND "$@"
+db_wait && db_migrate
+
+php-fpm &
+exec httpd -DFOREGROUND "$@"

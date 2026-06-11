@@ -11,7 +11,7 @@ if [ ! -n "$VERSION" ]; then
     exit 1
 fi
 
-VERSIONS_URL="http://version.phpbb.com/phpbb/versions.json"
+VERSIONS_URL="https://version.phpbb.com/phpbb/versions.json"
 LATEST_VERSION=$(curl --silent --location $VERSIONS_URL | jq --raw-output ".stable[\"$VERSION\"].current")
 if [ "$LATEST_VERSION" == "null" ]; then
     echo "PHPBB version not found"
