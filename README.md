@@ -1,203 +1,143 @@
 # phpBB3 docker image
 
-Lightweight, Alpine based [phpBB](https://www.phpbb.com/) docker image.
+Lightweight Alpine-based [phpBB](https://www.phpbb.com/) image with nginx and PHP 8.4 FPM.
 
-# Supported tags and respective `Dockerfile` links
+Bundled phpBB **3.3.17** with support for SQLite, MariaDB/MySQL (`mysqli`), and PostgreSQL.
 
-- [`3.3`, `3.3.4`, `latest`](https://github.com/selim13/docker-phpbb/blob/master/Dockerfile) bundled with PHP 8
-- [`3.2`, `3.2.11`](https://github.com/selim13/docker-phpbb/blob/3.2-alpine-apache/Dockerfile) bundled with PHP 7.2
+## Quick start with Docker Compose
 
-# How to use this image
-
-## Initial installation
-
-If you don't have a prepared phpBB database, you can use a standard phpBB 
-installer script, just run a temporary container with `PHPBB_INSTALL=true` 
-environment variable:
+The included `compose.yml` runs phpBB with MariaDB LTS:
 
 ```console
-$ docker run -p 8000:80 --name phpbb-install -e PHPBB_INSTALL=true -d selim13/phpbb:3.3
+$ docker compose up -d --build
 ```
 
-Point your browser to the http://localhost:8000 to begin the 
-installation process.
-
-This image is bundled with SQLite3, MySQL and PostgresSQL database engines
-support. Others can be added by creating custom Dockerfile. For MySQL and PostgresSQL
-you can use standard container linking or use SQLite if you want a self
-sufficient container.
-
-For SQLite3 set `Database server hostname or DSN` field to `/phpbb/sqlite/sqlite.db`.
-This file will be created on a docker volume and outside of the webserver's document root
-for security. Leave user name, password and database name fields blank.
-
-After the installation process is complete you can safely stop this container: 
+Open http://127.0.0.1:8000. For a fresh install, start once with the installer enabled:
 
 ```console
-$ docker stop phpbb-install
+$ PHPBB_INSTALL=true docker compose up --build
 ```
 
-## Starting
+During installation, use these database settings:
 
-You can start a container as follows:
+| Field | Value |
+| --- | --- |
+| Database type | MySQL with MySQLi Extension |
+| Database server | `mariadb` |
+| Database name | `phpbb` (or your `MARIADB_DATABASE`) |
+| Username | `phpbb` (or your `MARIADB_USER`) |
+| Password | `phpbb` (or your `MARIADB_PASSWORD`) |
 
+Default MariaDB credentials can be overridden with environment variables:
+
+- `MARIADB_ROOT_PASSWORD` (default: `changeme`)
+- `MARIADB_DATABASE` (default: `phpbb`)
+- `MARIADB_USER` (default: `phpbb`)
+- `MARIADB_PASSWORD` (default: `phpbb`)
+
+After installation, restart without `PHPBB_INSTALL` so the `install/` directory is removed on startup. Optionally enable automatic migrations:
 
 ```console
-$ docker run --name phpbb -d selim13/phpbb:3.3
+$ docker compose up -d
+$ PHPBB_DB_AUTOMIGRATE=true docker compose up -d
 ```
 
-By default, it uses SQLite3 as a database backend, so you will need to supply
-it with a database file. It's default path is `/phpbb/sqlite/sqlite.db`.
+When `PHPBB_INSTALL` is not set in the environment, the startup script deletes `install/` automatically.
 
-You can import it from the temporary installation container above:
+## Standalone container
+
+Build and run the image without Compose:
 
 ```console
-$ docker run --volumes-from phpbb-install --name phpbb -d selim13/phpbb:3.3
+$ docker build -t phpbb .
+$ docker run -p 8000:80 --name phpbb-install -e PHPBB_INSTALL=true -d phpbb
 ```
 
-Or just copy it inside container if you have one from previous phpBB
-installations:
+By default the standalone image uses SQLite. Set the DSN field to `/phpbb/sqlite/sqlite.db` during installation and leave username, password, and database name blank.
+
+For an external database:
 
 ```console
-$ docker cp /path/at/host/sqlite.db phpbb:/www/sqlite/sqlite.db
-```
-
-For other database engines you will need to pass credentials and driver type
-using environment variables:
-
-```console
-$ docker run --name phpbb     \
+$ docker run --name phpbb \
     -e PHPBB_DB_DRIVER=mysqli \
-    -e PHPBB_DB_HOST=dbmysql  \
-    -e PHPBB_DB_PORT=3306     \
-    -e PHPBB_DB_NAME=phpbb    \
-    -e PHPBB_DB_USER=phpbb    \
-    -e PHPBB_DB_PASSWD=pass -d selim13/phpbb:3.3
+    -e PHPBB_DB_HOST=dbhost \
+    -e PHPBB_DB_PORT=3306 \
+    -e PHPBB_DB_NAME=phpbb \
+    -e PHPBB_DB_USER=phpbb \
+    -e PHPBB_DB_PASSWD=pass \
+    -p 8000:80 -d phpbb
 ```
 
-## Environment variables 
+## Environment variables
 
-This image utilises environment variables for basic configuration. Most of
-them are passed directly to phpBB's `config.php` or to the startup script.
+Most variables are written into phpBB's `config.php` or read by the startup script.
 
 ### PHPBB_INSTALL
-If set to `true`, container will start with an empty `config.php` file and
-phpBB `/install/` directory intact. This will allow you to initilalize 
-a forum database upon fresh installation.
+
+If `true`, removes `config.php` and keeps the `/install/` directory for a fresh setup.
 
 ### PHPBB_DB_DRIVER
 
-Selects a database driver. phpBB3 ships with following drivers:
-- `mssql` - MS SQL Server
-- `mysql` - MySQL via outdated php extension
-- `mysqli` - MySQL via newer php extension
-- `oracle` - Oracle
-- `postgres` - PostgreSQL
-- `sqlite` - SQLite 2
-- `sqlite3` - SQLite 3
+Supported drivers in this image: `sqlite3`, `mysqli`, `postgres`.
 
-This image is bundled with support of `sqlite3`, `mysqli` and `postgres` drivers.
+Default: `sqlite3`
 
-Default value: sqlite3
- 
 ### PHPBB_DB_HOST
 
-Database hostname or ip address.
+Database hostname, or SQLite file path for the `sqlite3` driver.
 
-For the SQLite3 driver sets database file path. 
+Default: `/phpbb/sqlite/sqlite.db`
 
-Default value: /phpbb/sqlite/sqlite.db
- 
 ### PHPBB_DB_PORT
 
-Database port.
+Database port (required for `PHPBB_DB_WAIT` with network databases).
 
-### PHPBB_DB_NAME
+### PHPBB_DB_NAME / PHPBB_DB_USER / PHPBB_DB_PASSWD
 
-Supplies database name for phpBB3.
-
-### PHPBB_DB_USER
-
-Supplies a user name for phpBB3 database.
-
-### PHPBB_DB_PASSWD
-
-Supplies a user password for phpBB3 database.
-
-If you feel paranoid about providing your database password in an environment
-variable, you can always ship it with a custom `config.php` file using volumes
-or by extending this image.
+Database credentials.
 
 ### PHPBB_DB_TABLE_PREFIX
 
-Table prefix for phpBB3 database.
-
-Default value: phpbb_ 
+Default: `phpbb_`
 
 ### PHPBB_DB_AUTOMIGRATE
 
-If set to `true`, instructs a container to run database migrations by
-executing `bin/phpbbcli.php db:migrate` on every startup.
-
-If migrations fail, container will refuse to start.
+If `true`, runs `bin/phpbbcli.php db:migrate` on startup. Requires an existing database schema.
 
 ### PHPBB_DB_WAIT
-If set to `true`, container will wait for database service to become available.
-You will need to explicitly set `PHPBB_DB_HOST` and `PHPBB_DB_PORT` for this
-to work.
 
-Use in conjunction with `PHPBB_DB_AUTOMIGRATE` to prevent running migrations
-before database is ready.
+If `true`, waits for the database host/port to accept connections before running migrations. Not used with SQLite.
 
-Won't work for SQLite database engine as it is always available. 
+### PHPBB_DISPLAY_LOAD_TIME / PHPBB_DEBUG / PHPBB_DEBUG_CONTAINER
 
-### PHPBB_DISPLAY_LOAD_TIME
+Enable phpBB debug and diagnostics output when set to `true`.
 
-If set to `true`, phpBB will display page loading time, queries count and peak memory
-usage at the bottom of the page.
-
-### PHPBB_DEBUG
-
-If set to `true`, enables phpBB debug mode.
-
-### PHPBB_DEBUG_CONTAINER
-  
 ## Volumes
 
-By default there are four volumes created for each container:
-- /phpbb/sqlite
-- /phpbb/www/files
-- /phpbb/www/store
-- /phpbb/www/images/avatars/upload
+Persistent data paths:
 
-# Additional configuration
+- `/phpbb/www/files`
+- `/phpbb/www/store`
+- `/phpbb/www/images/avatars/upload`
+- `/phpbb/sqlite` (SQLite only)
 
-This image is based on a stock official Alpine image with apache2 and php5
-packages from the Alpine Linux repository, so you can drop their custom 
-configuration files to `/etc/apache2/conf.d` and `/etc/php5/conf.d`.
+## Updating phpBB version
 
-## Pass user's IP from proxy
-
-If you are planning to start a container behind proxy 
-(like [nginx-proxy](https://github.com/jwilder/nginx-proxy)), it will probably
-be a good idea to get user's real IP instead of proxy one. For this, you can use
-Apache RemoteIP module. Create a configuration file:
-
-```apache
-LoadModule remoteip_module modules/mod_remoteip.so
-
-RemoteIPHeader X-Real-IP
-RemoteIPInternalProxy nginx-proxy
+```console
+$ ./update.sh 3.3
 ```
 
-Here `X-Real-IP` is a header name, where proxy passed user's real IP and
-`nginx-proxy` is proxy host name.
+This updates `PHPBB_VERSION` and its checksum in the `Dockerfile`.
 
-Then push it to `/etc/apache2/conf.d/` directory, for example, by extending this
-image:
+## Custom configuration
+
+Drop PHP settings into `/usr/local/etc/php/conf.d` and nginx site config into `/etc/nginx/http.d` by extending the image:
 
 ```dockerfile
-FROM selim13/phpbb:3.3
+FROM your-image/phpbb:latest
 
-COPY remoteip.conf /etc/apache2/conf.d
+COPY custom.ini /usr/local/etc/php/conf.d/
+COPY custom.conf /etc/nginx/http.d/
 ```
+
+To pass the client IP through a reverse proxy, configure nginx `real_ip` directives in a custom server block.

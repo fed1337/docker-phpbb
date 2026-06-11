@@ -3,8 +3,7 @@ FROM php:8.4-fpm-alpine3.24
 RUN apk add --no-cache \
     curl \
     imagemagick \
-    apache2 \
-    apache2-proxy \
+    nginx \
     su-exec \
     netcat-openbsd \
     libpng \
@@ -38,24 +37,19 @@ RUN curl -fsSL "https://download.phpbb.com/pub/release/3.3/${PHPBB_VERSION}/phpB
 
 COPY phpbb/config.php /phpbb/www
 
-# Server
-RUN mkdir -p /run/apache2 /phpbb/opcache \
-    && chown apache:apache /run/apache2 /phpbb/opcache
+RUN mkdir -p /run/nginx /phpbb/opcache \
+    && chown nginx:nginx /run/nginx /phpbb/opcache \
+    && rm -f /etc/nginx/http.d/default.conf
 
-COPY apache2/httpd.conf /etc/apache2/
-COPY apache2/conf.d/* /etc/apache2/conf.d/
+COPY nginx/nginx.conf /etc/nginx/
+COPY nginx/http.d/* /etc/nginx/http.d/
 COPY php/php.ini php/php-cli.ini /usr/local/etc/php/
 COPY php/conf.d/* /usr/local/etc/php/conf.d/
 COPY php-fpm.d/* /usr/local/etc/php-fpm.d/
 COPY start.sh /usr/local/bin/
 
-RUN chown -R apache:apache /phpbb
+RUN chown -R nginx:nginx /phpbb
 WORKDIR /phpbb/www
-
-#VOLUME /phpbb/sqlite
-#VOLUME /phpbb/www/files
-#VOLUME /phpbb/www/store
-#VOLUME /phpbb/www/images/avatars/upload
 
 ENV PHPBB_INSTALL= \
     PHPBB_DB_DRIVER=sqlite3 \

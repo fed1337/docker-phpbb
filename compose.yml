@@ -1,19 +1,46 @@
 volumes:
-  phpbb-sqlite: {}
+  mariadb-data: {}
   phpbb-files: {}
   phpbb-store: {}
   phpbb-avatars: {}
 
 services:
+  mariadb:
+    image: mariadb:lts
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-changeme}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-phpbb}
+      MARIADB_USER: ${MARIADB_USER:-phpbb}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-phpbb}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   phpbb:
     build: .
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
     ports:
       - '127.0.0.1:8000:80'
     volumes:
-      - 'phpbb-sqlite:/phpbb/sqlite'
-      - 'phpbb-files:/phpbb/www/files'
-      - 'phpbb-store:/phpbb/www/store'
-      - 'phpbb-avatars:/phpbb/www/images/avatars/upload'
+      - phpbb-files:/phpbb/www/files
+      - phpbb-store:/phpbb/www/store
+      - phpbb-avatars:/phpbb/www/images/avatars/upload
     environment:
-      PHPBB_INSTALL: 'true'
-      # PHPBB_DB_AUTOMIGRATE: 'true'
+      - PHPBB_INSTALL=${MARIADB_DATABASE:-}
+      - PHPBB_DB_AUTOMIGRATE
+      - PHPBB_DB_DRIVER=mysqli
+      - PHPBB_DB_HOST=mariadb
+      - PHPBB_DB_PORT=3306
+      - PHPBB_DB_NAME=${MARIADB_DATABASE:-phpbb}
+      - PHPBB_DB_USER=${MARIADB_USER:-phpbb}
+      - PHPBB_DB_PASSWD=${MARIADB_PASSWORD:-phpbb}
+      - PHPBB_DB_WAIT=true
