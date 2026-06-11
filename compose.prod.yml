@@ -1,0 +1,3 @@
+services:
+  phpbb:
+    image: ghcr.io/fed1337/docker-phpbb:${PHPBB_TAG:-latest}

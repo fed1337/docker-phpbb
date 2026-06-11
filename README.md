@@ -2,20 +2,42 @@
 
 Lightweight Alpine-based [phpBB](https://www.phpbb.com/) image with nginx and PHP 8.4 FPM.
 
-Bundled phpBB **3.3.17** with support for SQLite, MariaDB/MySQL (`mysqli`), and PostgreSQL.
+Published to GitHub Container Registry as [`ghcr.io/fed1337/docker-phpbb`](https://github.com/fed1337/docker-phpbb/pkgs/container/docker-phpbb).
 
-## Quick start with Docker Compose
+Bundled phpBB **3.3.17** with SQLite and MariaDB/MySQL (`mysqli`) support.
 
-The included `compose.yml` runs phpBB with MariaDB LTS:
+## Docker Compose
+
+The stack is split into a shared base and two overlays:
+
+| File | Purpose |
+| --- | --- |
+| `compose.yml` | Shared MariaDB + phpBB configuration |
+| `compose.dev.yml` | Build the image locally |
+| `compose.prod.yml` | Pull the published image from GHCR |
+
+### Development (local build)
 
 ```console
-$ docker compose up -d --build
+$ docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Open http://127.0.0.1:8000. For a fresh install, start once with the installer enabled:
+### Production (GHCR image)
 
 ```console
-$ PHPBB_INSTALL=true docker compose up --build
+$ docker compose -f compose.yml -f compose.prod.yml up -d
+```
+
+Pull a specific phpBB version tag instead of `latest`:
+
+```console
+$ PHPBB_TAG=3.3.17 docker compose -f compose.yml -f compose.prod.yml up -d
+```
+
+Open http://127.0.0.1:8000. For a fresh install, pass `PHPBB_INSTALL` once:
+
+```console
+$ PHPBB_INSTALL=true docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
 During installation, use these database settings:
@@ -28,29 +50,39 @@ During installation, use these database settings:
 | Username | `phpbb` (or your `MARIADB_USER`) |
 | Password | `phpbb` (or your `MARIADB_PASSWORD`) |
 
-Default MariaDB credentials can be overridden with environment variables:
+Default MariaDB credentials can be overridden:
 
 - `MARIADB_ROOT_PASSWORD` (default: `changeme`)
 - `MARIADB_DATABASE` (default: `phpbb`)
 - `MARIADB_USER` (default: `phpbb`)
 - `MARIADB_PASSWORD` (default: `phpbb`)
 
-After installation, restart without `PHPBB_INSTALL` so the `install/` directory is removed on startup. Optionally enable automatic migrations:
+After installation, restart without `PHPBB_INSTALL` so the `install/` directory is removed on startup:
 
 ```console
-$ docker compose up -d
-$ PHPBB_DB_AUTOMIGRATE=true docker compose up -d
+$ docker compose -f compose.yml -f compose.dev.yml up -d
 ```
 
-When `PHPBB_INSTALL` is not set in the environment, the startup script deletes `install/` automatically.
+Optionally enable automatic migrations:
+
+```console
+$ PHPBB_DB_AUTOMIGRATE=true docker compose -f compose.yml -f compose.dev.yml up -d
+```
+
+## Image tags
+
+GitHub Actions publishes to GHCR on manual workflow dispatch. Tags track the phpBB version from the `Dockerfile`:
+
+- `3.3.17` — patch (full phpBB version)
+- `3.3` — minor
+- `3` — major
+- `latest`
 
 ## Standalone container
 
-Build and run the image without Compose:
-
 ```console
-$ docker build -t phpbb .
-$ docker run -p 8000:80 --name phpbb-install -e PHPBB_INSTALL=true -d phpbb
+$ docker pull ghcr.io/fed1337/docker-phpbb:latest
+$ docker run -p 8000:80 --name phpbb-install -e PHPBB_INSTALL=true -d ghcr.io/fed1337/docker-phpbb:latest
 ```
 
 By default the standalone image uses SQLite. Set the DSN field to `/phpbb/sqlite/sqlite.db` during installation and leave username, password, and database name blank.
@@ -65,7 +97,7 @@ $ docker run --name phpbb \
     -e PHPBB_DB_NAME=phpbb \
     -e PHPBB_DB_USER=phpbb \
     -e PHPBB_DB_PASSWD=pass \
-    -p 8000:80 -d phpbb
+    -p 8000:80 -d ghcr.io/fed1337/docker-phpbb:latest
 ```
 
 ## Environment variables
@@ -74,11 +106,11 @@ Most variables are written into phpBB's `config.php` or read by the startup scri
 
 ### PHPBB_INSTALL
 
-If `true`, removes `config.php` and keeps the `/install/` directory for a fresh setup.
+If `true`, removes `config.php` and keeps the `/install/` directory for a fresh setup. When unset, the startup script deletes `install/` automatically.
 
 ### PHPBB_DB_DRIVER
 
-Supported drivers in this image: `sqlite3`, `mysqli`, `postgres`.
+Supported drivers: `sqlite3`, `mysqli`.
 
 Default: `sqlite3`
 
@@ -127,14 +159,14 @@ Persistent data paths:
 $ ./update.sh 3.3
 ```
 
-This updates `PHPBB_VERSION` and its checksum in the `Dockerfile`.
+This updates `PHPBB_VERSION` and its checksum in the `Dockerfile`, then rebuild and run the [release workflow](.github/workflows/release.yml) to publish new GHCR tags.
 
 ## Custom configuration
 
-Drop PHP settings into `/usr/local/etc/php/conf.d` and nginx site config into `/etc/nginx/http.d` by extending the image:
+Extend the image to add PHP or nginx settings:
 
 ```dockerfile
-FROM your-image/phpbb:latest
+FROM ghcr.io/fed1337/docker-phpbb:latest
 
 COPY custom.ini /usr/local/etc/php/conf.d/
 COPY custom.conf /etc/nginx/http.d/
